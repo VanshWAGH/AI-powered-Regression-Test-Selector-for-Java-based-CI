@@ -1,9 +1,0 @@
-Always write JUnit5 tests for new classes (80%+ coverage)
-
-Use records for DTOs, validate with @Valid
-
-Log model confidence + timings with SLF4J
-
-10s latency target - cache aggressively
-
-Error handling: never crash CI, always fallback to "run all tests"
