@@ -1,0 +1,13 @@
+{
+  "event": "pull_request",
+  "action": "opened",
+  "repository": {
+    "full_name": "org/repo",
+    "clone_url": "https://github.com/org/repo.git"
+  },
+  "pull_request": {
+    "number": 123,
+    "base": { "ref": "main" },
+    "head": { "ref": "feature/branch" }
+  }
+}

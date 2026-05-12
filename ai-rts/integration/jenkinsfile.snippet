@@ -1,0 +1,5 @@
+stage('AI Test Selection') {
+  steps {
+    sh 'java -jar ai-rts/cli/target/cli-0.1.0-SNAPSHOT.jar --repo-dir=. --pr-id=$CHANGE_ID --output-format=surefire'
+  }
+}

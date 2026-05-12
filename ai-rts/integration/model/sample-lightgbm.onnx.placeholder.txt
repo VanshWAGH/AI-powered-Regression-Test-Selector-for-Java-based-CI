@@ -1,0 +1,2 @@
+Placeholder for ONNX model artifact.
+Replace this file with an exported LightGBM ONNX model named `sample-lightgbm.onnx`.

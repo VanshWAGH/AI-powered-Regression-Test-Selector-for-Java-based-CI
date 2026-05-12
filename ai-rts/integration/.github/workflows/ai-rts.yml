@@ -1,0 +1,20 @@
+name: AI Regression Test Selector
+
+on:
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  select-and-run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Build selector
+        run: mvn -f ai-rts/pom.xml -pl core,api,cli -am test
+      - name: Run selected tests
+        run: java -jar ai-rts/cli/target/cli-0.1.0-SNAPSHOT.jar --repo-dir=. --pr-id=${{ github.event.number }} --output-format=surefire
