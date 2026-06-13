@@ -54,4 +54,5 @@ jobs:
           echo "Selected command: ${CMD}"
 
       - name: Run selected tests
+        working-directory: ai-rts
         run: ${{ steps.select.outputs.cmd }}
