@@ -51,7 +51,7 @@ public class ModelService {
             }
             onnxRunner = new OnnxModelRunner(resource);
             log.info("ONNX model ready at {} (featureSpec={})", modelPath, FeatureSpec.VERSION);
-        } catch (Exception ex) {
+        } catch (Throwable ex) {
             log.warn("Failed to load ONNX model from {}; heuristic fallback engaged", modelPath, ex);
             onnxRunner = null;
         }
@@ -69,7 +69,7 @@ public class ModelService {
             if (onnxRunner != null) {
                 try {
                     return onnxRunner.score(vectors);
-                } catch (Exception ex) {
+                } catch (Throwable ex) {
                     log.warn("ONNX inference failed; heuristic fallback engaged", ex);
                 }
             }

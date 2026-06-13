@@ -143,3 +143,5 @@ docker run -p 8080:8080 \
 | PR diff always empty | Set `GITHUB_TOKEN` on Render |
 | DB connection failed | Use full Neon URL in `DATABASE_URL`; ensure `sslmode=require` |
 | ONNX falls back to heuristic | Check logs for model load errors; verify `rts-v1.onnx` in JAR |
+| Render crash `libstdc++.so.6` | Use Jammy-based Docker image (not Alpine); redeploy latest `api/Dockerfile` |
+| App exits on ONNX load error | Fixed: ONNX failures fall back to heuristic without killing the JVM |
