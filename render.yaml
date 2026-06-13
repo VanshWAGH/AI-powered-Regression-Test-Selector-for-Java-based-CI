@@ -1,0 +1,27 @@
+# Render Blueprint — free-tier Java Spring Boot API + external Neon PostgreSQL
+# Docs: https://render.com/docs/blueprint-spec
+#
+# Vercel/Netlify are NOT compatible (no long-running JVM). Render free web service works.
+
+services:
+  - type: web
+    name: ai-rts-api
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./ai-rts/api/Dockerfile
+    dockerContext: ./ai-rts
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      - key: AI_RTS_API_TOKEN
+        generateValue: true
+      - key: GITHUB_TOKEN
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: AI_RTS_MODEL_ENABLED
+        value: "true"
+      - key: JAVA_OPTS
+        value: "-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"

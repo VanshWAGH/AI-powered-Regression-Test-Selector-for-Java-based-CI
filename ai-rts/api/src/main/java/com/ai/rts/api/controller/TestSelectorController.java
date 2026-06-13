@@ -15,6 +15,8 @@ import com.ai.rts.core.service.TestHistoryService;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,6 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1")
 public class TestSelectorController {
+    private static final Logger log = LoggerFactory.getLogger(TestSelectorController.class);
     private final GitCloneService gitCloneService;
     private final TestHistoryService testHistoryService;
     private final FeatureExtractor featureExtractor;
@@ -50,15 +53,20 @@ public class TestSelectorController {
             @PathVariable("repoId") String repoId,
             @PathVariable("prId") String prId,
             @Valid @RequestBody RecommendRequest request) {
-        List<TestMetadata> metadata = testHistoryService.loadMetadata();
+        long started = System.nanoTime();
+        List<TestMetadata> metadata = testHistoryService.loadMetadata(repoId);
         List<FeatureVector> vectors = featureExtractor.buildFeatures(
                 metadata,
-                testHistoryService.loadRecentRuns(request.testHistoryDays()),
+                testHistoryService.loadRecentRuns(repoId, request.testHistoryDays()),
                 gitCloneService.extractDiff(request.repoUrl(), request.prNumber()));
 
         RecommendationResult result = vectors.isEmpty()
                 ? recommendationEngine.fallbackRunAll(List.of())
                 : recommendationEngine.recommend(vectors, modelService.score(vectors));
+
+        long elapsedMs = (System.nanoTime() - started) / 1_000_000;
+        log.info("Recommend repoId={} prId={} tests={} subset={} latencyMs={}",
+                repoId, prId, result.rankedTests().size(), result.recommendedSubset().size(), elapsedMs);
 
         List<RankedTestDto> ranked = result.rankedTests().stream()
                 .map(t -> new RankedTestDto(t.testId(), t.className(), t.methodName(), t.riskScore(), t.estimatedTime()))

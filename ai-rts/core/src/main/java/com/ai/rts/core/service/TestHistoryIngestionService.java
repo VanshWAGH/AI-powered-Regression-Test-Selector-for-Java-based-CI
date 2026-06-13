@@ -29,7 +29,7 @@ public class TestHistoryIngestionService {
     }
 
     @Transactional
-    public IngestionSummary ingest(String prId, Instant timestamp, List<String> junitXmlDocuments, List<String> allureResultJsonDocuments) {
+    public IngestionSummary ingest(String repoId, String prId, Instant timestamp, List<String> junitXmlDocuments, List<String> allureResultJsonDocuments) {
         int runsInserted = 0;
         int metadataUpserts = 0;
 
@@ -37,9 +37,9 @@ public class TestHistoryIngestionService {
             for (String xml : junitXmlDocuments) {
                 for (JunitTestCaseResult tc : junitXmlParser.parse(xml)) {
                     String testId = tc.className() + "#" + tc.methodName();
-                    testRunRepository.save(new TestRun(testId, tc.status(), tc.durationMs(), timestamp, prId));
+                    testRunRepository.save(new TestRun(repoId, testId, tc.status(), tc.durationMs(), timestamp, prId));
                     runsInserted++;
-                    metadataUpserts += upsertMetadata(tc.className(), tc.methodName(), tc.durationMs());
+                    metadataUpserts += upsertMetadata(repoId, tc.className(), tc.methodName(), tc.durationMs());
                 }
             }
         }
@@ -48,9 +48,9 @@ public class TestHistoryIngestionService {
             for (String json : allureResultJsonDocuments) {
                 for (AllureTestCaseResult tc : allureResultParser.parseResultJson(json)) {
                     String testId = tc.className() + "#" + tc.methodName();
-                    testRunRepository.save(new TestRun(testId, tc.status(), tc.durationMs(), tc.timestamp(), prId));
+                    testRunRepository.save(new TestRun(repoId, testId, tc.status(), tc.durationMs(), tc.timestamp(), prId));
                     runsInserted++;
-                    metadataUpserts += upsertMetadata(tc.className(), tc.methodName(), tc.durationMs());
+                    metadataUpserts += upsertMetadata(repoId, tc.className(), tc.methodName(), tc.durationMs());
                 }
             }
         }
@@ -58,9 +58,9 @@ public class TestHistoryIngestionService {
         return new IngestionSummary(runsInserted, metadataUpserts);
     }
 
-    private int upsertMetadata(String className, String methodName, long durationMs) {
-        TestMetadata md = testMetadataRepository.findByClassNameAndMethodName(className, methodName)
-                .orElseGet(() -> new TestMetadata(className, methodName, "", "unit", durationMs));
+    private int upsertMetadata(String repoId, String className, String methodName, long durationMs) {
+        TestMetadata md = testMetadataRepository.findByRepoIdAndClassNameAndMethodName(repoId, className, methodName)
+                .orElseGet(() -> new TestMetadata(repoId, className, methodName, "", "unit", durationMs));
 
         if (md.getId() == null) {
             testMetadataRepository.save(md);

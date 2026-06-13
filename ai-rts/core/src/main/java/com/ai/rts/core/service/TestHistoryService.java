@@ -19,11 +19,11 @@ public class TestHistoryService {
         this.testMetadataRepository = testMetadataRepository;
     }
 
-    public List<TestRun> loadRecentRuns(int days) {
-        return testRunRepository.findByTimestampAfter(Instant.now().minus(days, ChronoUnit.DAYS));
+    public List<TestRun> loadRecentRuns(String repoId, int days) {
+        return testRunRepository.findByRepoIdAndTimestampAfter(repoId, Instant.now().minus(days, ChronoUnit.DAYS));
     }
 
-    public List<TestMetadata> loadMetadata() {
-        return testMetadataRepository.findAll();
+    public List<TestMetadata> loadMetadata(String repoId) {
+        return testMetadataRepository.findByRepoId(repoId);
     }
 }

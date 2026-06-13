@@ -6,6 +6,7 @@ import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface TestMetadataRepository extends JpaRepository<TestMetadata, Long> {
-    List<TestMetadata> findByType(String type);
-    Optional<TestMetadata> findByClassNameAndMethodName(String className, String methodName);
+    List<TestMetadata> findByRepoId(String repoId);
+    List<TestMetadata> findByRepoIdAndType(String repoId, String type);
+    Optional<TestMetadata> findByRepoIdAndClassNameAndMethodName(String repoId, String className, String methodName);
 }

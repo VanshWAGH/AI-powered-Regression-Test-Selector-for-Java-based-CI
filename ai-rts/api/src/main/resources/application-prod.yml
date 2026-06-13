@@ -1,0 +1,31 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/airts}
+    username: ${DATABASE_USERNAME:airts}
+    password: ${DATABASE_PASSWORD:}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  flyway:
+    enabled: true
+
+server:
+  port: ${PORT:8080}
+
+logging:
+  level:
+    com.ai.rts: INFO
+
+ai:
+  rts:
+    api-token: ${AI_RTS_API_TOKEN:}
+    model:
+      path: ${AI_RTS_MODEL_PATH:classpath:models/rts-v1.onnx}
+      enabled: ${AI_RTS_MODEL_ENABLED:true}

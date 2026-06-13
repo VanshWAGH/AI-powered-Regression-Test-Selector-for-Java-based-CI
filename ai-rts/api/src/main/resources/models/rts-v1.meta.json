@@ -1,0 +1,6 @@
+{
+  "featureSpecVersion": "v1",
+  "featureCount": 12,
+  "trainingSamples": 4000,
+  "positiveRate": 0.601
+}

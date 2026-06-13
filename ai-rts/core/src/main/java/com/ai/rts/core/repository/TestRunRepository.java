@@ -6,6 +6,6 @@ import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface TestRunRepository extends JpaRepository<TestRun, Long> {
-    List<TestRun> findByTimestampAfter(Instant from);
-    List<TestRun> findByTestId(String testId);
+    List<TestRun> findByRepoIdAndTimestampAfter(String repoId, Instant from);
+    List<TestRun> findByRepoIdAndTestId(String repoId, String testId);
 }

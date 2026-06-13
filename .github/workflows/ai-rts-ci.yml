@@ -1,0 +1,35 @@
+# Build and test the AI-RTS multi-module project. Uploads Surefire XML for the companion workflow
+# "AI-RTS History Ingest" (see ai-rts-history-ingest.yml), which POSTs real reports to your deployed API.
+name: AI-RTS CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      - name: Maven verify
+        run: mvn -f ai-rts/pom.xml -B -ntp verify
+
+      - name: Upload Surefire reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports-${{ github.run_id }}
+          path: |
+            ai-rts/**/target/surefire-reports/
+          if-no-files-found: ignore

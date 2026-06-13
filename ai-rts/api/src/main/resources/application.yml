@@ -6,8 +6,11 @@ spring:
     password:
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
   h2:
     console:
       enabled: true
@@ -22,3 +25,11 @@ logging:
 
 github:
   token: ${GITHUB_TOKEN:}
+
+# When set, all /api/v1/** requests must send Authorization: Bearer <token>
+ai:
+  rts:
+    api-token: ${AI_RTS_API_TOKEN:}
+    model:
+      path: ${AI_RTS_MODEL_PATH:classpath:models/rts-v1.onnx}
+      enabled: ${AI_RTS_MODEL_ENABLED:true}

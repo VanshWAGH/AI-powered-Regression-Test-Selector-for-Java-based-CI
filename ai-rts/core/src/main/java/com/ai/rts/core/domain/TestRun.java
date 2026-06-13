@@ -13,6 +13,7 @@ public class TestRun {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    private String repoId;
     private String testId;
     private String result;
     private long duration;
@@ -21,7 +22,8 @@ public class TestRun {
 
     public TestRun() {}
 
-    public TestRun(String testId, String result, long duration, Instant timestamp, String prId) {
+    public TestRun(String repoId, String testId, String result, long duration, Instant timestamp, String prId) {
+        this.repoId = repoId;
         this.testId = testId;
         this.result = result;
         this.duration = duration;
@@ -30,6 +32,7 @@ public class TestRun {
     }
 
     public Long getId() { return id; }
+    public String getRepoId() { return repoId; }
     public String getTestId() { return testId; }
     public String getResult() { return result; }
     public long getDuration() { return duration; }

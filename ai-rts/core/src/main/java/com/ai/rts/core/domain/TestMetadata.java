@@ -12,6 +12,7 @@ public class TestMetadata {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+    private String repoId;
     private String className;
     private String methodName;
     private String tags;
@@ -20,7 +21,8 @@ public class TestMetadata {
 
     public TestMetadata() {}
 
-    public TestMetadata(String className, String methodName, String tags, String type, long avgDuration) {
+    public TestMetadata(String repoId, String className, String methodName, String tags, String type, long avgDuration) {
+        this.repoId = repoId;
         this.className = className;
         this.methodName = methodName;
         this.tags = tags;
@@ -29,6 +31,7 @@ public class TestMetadata {
     }
 
     public Long getId() { return id; }
+    public String getRepoId() { return repoId; }
     public String getClassName() { return className; }
     public String getMethodName() { return methodName; }
     public String getTags() { return tags; }

@@ -29,7 +29,7 @@ public class TestHistoryController {
             @PathVariable("prId") String prId,
             @Valid @RequestBody IngestRequest request) {
         Instant ts = request.timestamp() == null ? Instant.now() : request.timestamp();
-        var summary = ingestionService.ingest(prId, ts, request.junitXmlDocuments(), request.allureResultJsonDocuments());
+        var summary = ingestionService.ingest(repoId, prId, ts, request.junitXmlDocuments(), request.allureResultJsonDocuments());
         return ResponseEntity.ok(new IngestResponse(summary.testRunsInserted(), summary.metadataUpserted()));
     }
 

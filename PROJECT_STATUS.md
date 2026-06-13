@@ -8,7 +8,7 @@
 - **Goals**: 90%+ regression recall, <10s latency per PR (with caching), Java 17, Maven, JUnit 5
 - **Constraints**: pure Java where possible (ONNX optional), H2 for PoC, Spring Boot 3.x
 
-## Architecture (implemented skeleton)
+## Architecture (implemented)
 Data ingestion → Feature engineering → Model service (ONNX optional) → Recommendation engine → REST API/CLI → CI integration
 
 ## What is built now
@@ -22,108 +22,130 @@ Root folder: `ai-rts/`
 - `ai-rts/integration/` (CI artifacts + simulation test)
 
 ### 2) Core module (`ai-rts/core`)
-- **Entities**:
-  - `TestRun` (testId, result, duration, timestamp, prId)
+- **Entities** (repo-scoped):
+  - `TestRun` (repoId, testId, result, duration, timestamp, prId)
+  - `TestMetadata` (repoId, className, methodName, tags, type, avgDuration)
   - `CodeChange` (filePath, linesAdded, linesRemoved, methodsTouched)
-  - `TestMetadata` (className, methodName, tags, type, avgDuration)
-- **Repositories** (Spring Data JPA):
+- **Repositories** (Spring Data JPA, filtered by `repoId`):
   - `TestRunRepository`, `CodeChangeRepository`, `TestMetadataRepository`
 - **Services**:
   - `GitCloneService` (GitHub PR files diff ingestion via GitHub API; supports `GITHUB_TOKEN`)
-  - `TestHistoryService` (loads metadata/runs from DB)
+  - `TestHistoryService` (loads metadata/runs **per repo** from DB)
   - `TestHistoryIngestionService` (ingests JUnit XML + Allure result JSON into DB)
-  - `FeatureExtractor` (builds 12 features per test)
+  - `FeatureExtractor` (12 features: recency-weighted fail rate, flakiness transitions, package overlap with PR diff, critical/integration tags, etc.)
   - `ModelService` (ONNX detection via reflection + heuristic fallback scoring)
-  - `RecommendationEngine` (ranking + subset selection with time budget)
-- **Unit tests**:
-  - feature vector test + subset selection test
-  - JUnit XML parser test + GitHub repo URL parser test
+  - `RecommendationEngine` (ranking + subset selection; **always includes `@critical`-tagged tests**; 40% count cap + 10 min budget)
+- **Unit tests**: feature extraction, recommendation, JUnit XML parser, GitHub repo URL parser
 
 ### 3) API module (`ai-rts/api`)
 - Spring Boot app: `com.ai.rts.api.ApiApplication`
-- Endpoint:
+- Endpoints:
   - `POST /api/v1/{repoId}/{prId}/recommend`
-  - `POST /api/v1/{repoId}/{prId}/history/ingest` (ingest JUnit/Allure history)
-  - Request: `{ repoUrl, prNumber, testHistoryDays }`
-  - Response: `{ rankedTests, recommendedSubset, metrics }`
-- Fixed runtime issues:
-  - executable jar packaging via Spring Boot `repackage`
-  - repository/entity scanning enabled for `core`
-  - explicit `@PathVariable` names to avoid reflection/`-parameters` issues
-- H2 in-memory DB default configuration (`application.yml`)
+  - `POST /api/v1/{repoId}/{prId}/history/ingest`
+- **Optional Bearer auth**: env `AI_RTS_API_TOKEN` on server (`ai.rts.api-token` in `application.yml`)
+- **Flyway** schema (`V1__init.sql`) with repo-scoped indexes
+- **Profiles**:
+  - default: H2 in-memory + Flyway
+  - `prod`: PostgreSQL via `DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD`
+- **Integration test**: `RecommendFlowTest` — ingest real Surefire XML → recommend (end-to-end in-process)
 
 ### 4) CLI module (`ai-rts/cli`)
-- `com.ai.rts.cli.Main` outputs a Surefire-style command string (currently placeholder test list)
-- JUnit test validates CLI prints `mvn test -Dtest=...`
+- **`--ingest`**: POST Surefire/Allure files to `/history/ingest` (Bearer via `--api-token` or env)
+- **Recommend**: `--api-url`, `--repo-url`, `--pr-id` → prints `mvn test -Dtest=...` (Bearer auth supported)
+- On failure: falls back to `mvn test` (CI-safe)
 
-### 5) Integration module (`ai-rts/integration`)
-- GitHub Actions workflow template
-- Webhook JSON template
-- Jenkins/GitLab snippets (optional)
-- 500-test selection simulation test
+### 5) CI workflows (`.github/workflows/`)
+| Workflow | Trigger | Purpose |
+|----------|---------|---------|
+| `ai-rts-ci.yml` | push/PR to main | Build + test; upload Surefire XML artifact |
+| `ai-rts-history-ingest.yml` | after green push to main | Download artifact → CLI `--ingest` → deployed API |
+| `ai-rts-pr-select.yml` | pull_request | CLI recommend → run selected Maven tests |
 
-## Known gaps / limitations right now (expected for MVP skeleton)
-- **No automatic pipeline to fetch CI artifacts** yet (you must send JUnit/Allure documents to the ingest endpoint for now).
-- **No seeding of sample history/metadata** so API may return empty ranked/subset lists until data exists.
-- **Model inference** is fallback heuristic only; ONNX session execution not wired to an actual model file.
-- **Latency/caching** not implemented yet (no local repo cache, no PR feature cache).
-- **DB migrations** (Flyway) not added yet.
+## Real data flow (production path)
 
-## How to run (current)
+```mermaid
+sequenceDiagram
+    participant GH as GitHub Actions
+    participant CLI as ai-rts-cli
+    participant API as ai-rts-api
+    participant DB as PostgreSQL/H2
+
+    Note over GH,DB: Main branch (history build-up)
+    GH->>GH: mvn verify (full suite)
+    GH->>GH: upload surefire-reports artifact
+    GH->>CLI: --ingest --surefire-dir=...
+    CLI->>API: POST /{repoId}/ci-{sha}/history/ingest
+    API->>DB: test_runs + test_metadata (scoped by repoId)
+
+    Note over GH,DB: Pull request (selection)
+    GH->>CLI: recommend --pr-id=N
+    CLI->>API: POST /{repoId}/N/recommend
+    API->>DB: load history for repoId
+    API->>API: GitHub PR diff + features + score
+    API-->>CLI: recommendedSubset
+    CLI-->>GH: mvn test -Dtest=Class#method,...
+    GH->>GH: run subset only
+```
+
+## Deploy the API (minimum for real data)
+
+1. **Run with PostgreSQL** (recommended — H2 resets on restart):
+   ```bash
+   export SPRING_PROFILES_ACTIVE=prod
+   export DATABASE_URL=jdbc:postgresql://host:5432/airts
+   export DATABASE_USERNAME=airts
+   export DATABASE_PASSWORD=secret
+   export AI_RTS_API_TOKEN=your-shared-secret   # optional but recommended
+   export GITHUB_TOKEN=ghp_...                  # for PR diff fetch
+   java -jar api/target/api-0.1.0-SNAPSHOT.jar
+   ```
+
+2. **Configure GitHub repo secrets**:
+   - `AI_RTS_API_BASE_URL` — e.g. `https://your-selector.example.com`
+   - `AI_RTS_API_TOKEN` — same value as server (if auth enabled)
+   - `AI_RTS_REPO_ID` — optional; defaults to repository name
+
+3. **First ingest**: push to main → `ai-rts-history-ingest` runs after CI → DB populated.
+
+4. **PR selection**: open a PR → `ai-rts-pr-select` calls API → runs subset.
+
+## Known gaps (next iterations)
+- **ONNX inference** not wired to a trained model file (heuristic fallback only)
+- **PR diff coupling** is file/package overlap; JavaParser call-graph coupling not yet implemented
+- **Latency caching** (PR feature cache, repo clone cache) not added
+- **Retention policy** for old test runs not implemented
+- **Per-repo API keys / JWT** — shared Bearer token only today
+
+## How to run locally
 
 ### Build
-From `ai-rts/`:
+From repository root:
 ```bash
-mvn -pl api -am clean package
+mvn -f ai-rts/pom.xml clean verify
 ```
 
-### Run API
+### Run API + ingest + recommend
+Terminal 1:
 ```bash
-java -jar api/target/api-0.1.0-SNAPSHOT.jar
+java -jar ai-rts/api/target/api-0.1.0-SNAPSHOT.jar
 ```
 
-### Call API (PowerShell example)
+Terminal 2 (ingest this project's Surefire reports):
 ```powershell
-$body = @{ repoUrl = "https://github.com/VanshWAGH-CS/ai-rts-test"; prNumber = 1; testHistoryDays = 30 } | ConvertTo-Json
-Invoke-RestMethod -Method Post -Uri "http://localhost:8080/api/v1/ai-rts-test/1/recommend" -ContentType "application/json" -Body $body
+java -jar ai-rts/cli/target/cli-0.1.0-SNAPSHOT.jar --ingest --api-url=http://localhost:8080 --repo-id=myrepo --correlation-id=ci-local-1 --surefire-dir=ai-rts/core/target/surefire-reports
 ```
 
-## Phase-wise roadmap (what to do next)
+Terminal 3 (recommend):
+```powershell
+java -jar ai-rts/cli/target/cli-0.1.0-SNAPSHOT.jar --api-url=http://localhost:8080 --repo-url=https://github.com/org/repo --repo-id=myrepo --pr-id=1 --output-format=surefire
+```
 
-### Phase 1 — Make it useful with real data (PoC)
-- Implement **GitHub PR diff ingestion** ✅ (GitHub API PR files + `GITHUB_TOKEN`)
-- Implement **JUnit XML + Allure ingestion** ✅ (via `/history/ingest`)
-- Next: implement **artifact fetching** from GitHub Actions (download surefire/allure artifacts automatically)
-- Add a **data seeder** for local demo:
-  - insert sample `TestMetadata` + `TestRun` so API returns ranked tests immediately
+## Phase roadmap
 
-### Phase 2 — Better features + selection quality
-- Add richer coupling/features:
-  - changed package overlap with test class package
-  - recency-weighted fail rate
-  - flakiness based on alternating outcomes
-  - duration normalization + percentile bucket
-- Add deterministic selection policies:
-  - always include `critical` tag
-  - enforce time budget first, then coverage-like constraints
-
-### Phase 3 — Real ONNX inference (still pure Java)
-- Define stable feature ordering/spec version
-- Add ONNX model loading from file (config path)
-- Implement actual inference + confidence logging
-- Keep heuristic fallback on any model failure
-
-### Phase 4 — CI-first hardening (GitHub Actions)
-- Add workflow that:
-  - collects test reports from previous runs (artifact download)
-  - calls selector API
-  - runs returned tests
-- Add observability:
-  - latency timers, selection size/reduction, fallback counts
-
-### Phase 5 — Production readiness
-- Switch H2 → PostgreSQL by profile
-- Add Flyway migrations + retention policy
-- Add auth (API key/JWT) for multi-repo usage
-- Add integration tests that simulate 100 PRs with persisted history and validate recall/reduction metrics
-
+| Phase | Status | Notes |
+|-------|--------|-------|
+| 1 Real data path | ✅ Done | Ingest + history workflow + repo scoping |
+| 2 Better features | ✅ Partial | Recency fail rate, flakiness, package overlap, critical-always |
+| 3 ONNX inference | ✅ Done | `rts-v1.onnx` bundled; `OnnxModelRunner` + train script; heuristic fallback |
+| 4 CI PR selection | ✅ Done | `ai-rts-pr-select.yml` |
+| 5 Production deploy | ✅ Ready | Render + Neon; see [`DEPLOY.md`](DEPLOY.md) |
