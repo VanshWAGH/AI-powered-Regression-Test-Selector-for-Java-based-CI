@@ -2,6 +2,8 @@ package com.ai.rts.api.controller;
 
 import com.ai.rts.core.service.TestHistoryIngestionService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import java.time.Instant;
@@ -27,9 +29,23 @@ public class TestHistoryController {
     public ResponseEntity<IngestResponse> ingest(
             @PathVariable("repoId") String repoId,
             @PathVariable("prId") String prId,
-            @Valid @RequestBody IngestRequest request) {
+            @Valid @RequestBody @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    content = @Content(examples = @ExampleObject(
+                            name = "sampleSurefire",
+                            value = """
+                                    {
+                                      "timestamp": null,
+                                      "junitXmlDocuments": [
+                                        "<?xml version=\\"1.0\\" encoding=\\"UTF-8\\"?><testsuite name=\\"Demo\\"><testcase classname=\\"com.demo.DemoTest\\" name=\\"alwaysPass\\" time=\\"0.01\\"/></testsuite>"
+                                      ],
+                                      "allureResultJsonDocuments": []
+                                    }
+                                    """)))
+            IngestRequest request) {
         Instant ts = request.timestamp() == null ? Instant.now() : request.timestamp();
-        var summary = ingestionService.ingest(repoId, prId, ts, request.junitXmlDocuments(), request.allureResultJsonDocuments());
+        List<String> junit = request.junitXmlDocuments() == null ? List.of() : request.junitXmlDocuments();
+        List<String> allure = request.allureResultJsonDocuments() == null ? List.of() : request.allureResultJsonDocuments();
+        var summary = ingestionService.ingest(repoId, prId, ts, junit, allure);
         return ResponseEntity.ok(new IngestResponse(summary.testRunsInserted(), summary.metadataUpserted()));
     }
 
